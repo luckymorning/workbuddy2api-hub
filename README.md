@@ -219,15 +219,33 @@ python tests/run_all.py            # 全部套件
 python tests/run_all.py realm      # 只跑名字里含 realm 的
 ```
 
-- 272 个套件：205 个 Python + 67 个 JS；JS 需要 PATH 上有 `node`，缺失时会跳过并提示。
+- 275 个套件：207 个 Python + 68 个 JS；JS 需要 PATH 上有 `node`，缺失时会跳过并提示。
 - `tests/_mobile_check.py` 是独立的 Playwright 手机/桌面布局检查器（需自行安装 Playwright），按需手动运行，不在上面的套件集里。
 - CI（`.github/workflows/tests.yml`）跑同一条命令：Ubuntu 上 python 3.9 与 3.12（3.9 是本项目声称的最低版本），Windows 上 python 3.12；推送 `v*` tag 时额外断言 **tag == 源码版本**（`-ci` 演练 tag 豁免）。
 
 ---
 
+## Zhanlu 授权文件接入
+
+无需运行独立的 zhanlu2api 服务，本网关直接访问 Zhanlu 上游。
+
+1. 在面板「账号」页选择 **Zhanlu**。
+2. 选择 Zhanlu 客户端的 `auth_zhanlu.json` 和配套的 `.zhanlu-auth.key`，点击「导入 Zhanlu 授权文件」。密钥文件是 **32 字节原始二进制文件**，不是文本或 Base64 文件；部分文件选择器需开启显示隐藏文件。
+3. 勾选「启用 Zhanlu 出口」（默认关闭）。可以导入授权文件中的多个账号；重复账号默认跳过，勾选「覆盖已有账号」可按名称和上游地址更新唯一匹配账号的凭据并保留 UID 绑定。同名 `ecloud` 的不同授权凭据默认可并存；若已有多个同名账号需要续期，请移除失效账号再导入。
+4. 在「设置 → API Key」绑定 **固定 Zhanlu 出口**，或在网关页切换默认出口；通过 `/v1/models` 获取当前账号可用的模型 ID。
+5. 客户端继续使用本网关的 `/v1/chat/completions`、`/v1/responses` 或 `/v1/messages`；Messages 仍需打开现有 Anthropic Messages 开关。
+
+账号管理支持启用、停用、清冷却、删除与积分刷新。账号白名单同样作用于 Zhanlu；上游认证失败、限流或连接失败会冷却并尝试其他账号。仅支持授权文件中的 `type=api`、`cipherVersion=zhanlu-auth-v1`。
+
+**安全与持久化**：原始解密密钥不保存，导入的 API 凭据使用本地随机密钥重新加密。账号文件及本地密钥保存在 `accounts/zhanlu/`，Unix 权限分别为 600（文件）/700（新建目录），目录已被 Git 忽略。迁移时须把此目录作为敏感数据整体保护并一起迁移；删除本地密钥后已有账号不能解密，应恢复原密钥；若无法恢复，请先移除旧账号，再重新导入。不要将授权文件或密钥提交到 Git。远程面板上传应使用 HTTPS。
+
+Zhanlu 没有登录/自动续期接口：凭据失效时请在客户端重新登录并重新导入。Zhanlu 的模型同名也不会套用 WorkBuddy 价格，用量记录标为 `zhanlu:unpriced`；积分展示来自 Zhanlu 的 budget-info。暂不支持 Zhanlu 账号代理槽、签到/成长任务或媒体生成。
+
 ## 七、版本更新记录 (Changelog)
 
 ### Unreleased
+
+- **Zhanlu 账号出口**：新增原生 Zhanlu 接入，支持导入 `auth_zhanlu.json` 与 `.zhanlu-auth.key`、多账号轮转与会话粘滞、账号启停/删除、模型发现和积分刷新；支持 Chat Completions、Responses、Messages 的流式与非流式请求及 API Key 出口绑定。默认关闭，导入后需手动启用；凭据本地加密保存。
 
 - **账号分组**（#707）：账号新增可选分组，支持按组筛选、导入时指定分组、单账号编辑、分组启停，以及刷新凭证 / 测试 / 补积分等批量操作仅作用于当前分组；API Key 账号选择器也支持按组选入与移除。
 - **API Key 配置示例**（#704）：设置页新增可折叠的 Base URL、cURL 与各协议端点示例，并支持一键复制。

@@ -37,7 +37,7 @@ assert.ok(/window\.REALM_OPTIONS/.test(script),
   '默认出口循环应读取服务端返回的 options');
 assert.ok(/if\(r === "codearts"\)\{/.test(script),
   'switchViewRealm 应有 codearts 分支');
-assert.ok(/\[\'intl\', \'cn\', \'codearts\'\]\.includes\(viewFromUrl\)/.test(script),
+assert.ok(/\[\'intl\', \'cn\', \'codearts\', \'zhanlu\'\]\.includes\(viewFromUrl\)/.test(script),
   '?view=codearts 应被接受');
 
 /* ---- 2. 行为 ---- */

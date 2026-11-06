@@ -1973,6 +1973,23 @@ if(!window.__NEXT_UI__ && defaultConsoleLayout) {
   var ATTRS = ['title', 'placeholder', 'aria-label', 'data-label', 'alt'];
   var SKIP = {SCRIPT: 1, STYLE: 1, TEXTAREA: 1, NOSCRIPT: 1};
   var DICT = {
+    "WorkBuddy、CodeArts 与 Zhanlu 账号、积分和签到记录。": "WorkBuddy, CodeArts and Zhanlu accounts, credits and check-in history.",
+    "Zhanlu 账号": "Zhanlu accounts",
+    "导入 auth_zhanlu.json 和配套的 .zhanlu-auth.key；源密钥不落盘，账号凭据在本地加密保存。": "Import auth_zhanlu.json and its .zhanlu-auth.key; the source key is not saved, and account credentials are encrypted locally.",
+    "授权文件": "Authorization file",
+    "授权文件导入": "Authorization file import",
+    "解密密钥文件": "Decryption key file",
+    "覆盖已有账号": "Overwrite existing accounts",
+    "导入 Zhanlu 授权文件": "Import Zhanlu authorization files",
+    "启用 Zhanlu 出口": "Enable Zhanlu egress",
+    "固定 Zhanlu 出口": "Fixed Zhanlu egress",
+    "请先导入 Zhanlu 授权文件": "Import Zhanlu authorization files first",
+    "请选择授权文件和解密密钥文件": "Select both authorization and decryption key files",
+    "授权文件过大或密钥文件不是 32 字节": "Authorization file is too large or key file is not 32 bytes",
+    "授权文件不是有效 JSON": "Authorization file is not valid JSON",
+    "确认删除 Zhanlu 账号？": "Delete this Zhanlu account?",
+    "导入完成：": "Imported: ",
+
     '媒体': 'Media',
     '媒体生成': 'Media generation',
     '生图 / 生视频的开关在「设置」页；这里看模型约束和最近任务。每次生成都会真实扣账号积分。': 'The image / video switches live on the Settings page; this page shows model limits and recent tasks. Every generation really spends account credits.',
@@ -3451,6 +3468,23 @@ if(!window.__NEXT_UI__ && defaultConsoleLayout) {
     '猫猫正在旅行途中，请稍后再来查看！': 'The cat is still travelling; check again later!'
   };
   var HANT_PHRASES = {
+    "WorkBuddy、CodeArts 与 Zhanlu 账号、积分和签到记录。": "WorkBuddy、CodeArts 與 Zhanlu 帳號、積分和簽到記錄。",
+    "Zhanlu 账号": "Zhanlu 帳號",
+    "导入 auth_zhanlu.json 和配套的 .zhanlu-auth.key；源密钥不落盘，账号凭据在本地加密保存。": "匯入 auth_zhanlu.json 和配套的 .zhanlu-auth.key；來源金鑰不落盤，帳號憑證在本地加密儲存。",
+    "授权文件": "授權檔案",
+    "授权文件导入": "授權檔案匯入",
+    "解密密钥文件": "解密金鑰檔案",
+    "覆盖已有账号": "覆寫已有帳號",
+    "导入 Zhanlu 授权文件": "匯入 Zhanlu 授權檔案",
+    "启用 Zhanlu 出口": "啟用 Zhanlu 出口",
+    "固定 Zhanlu 出口": "固定 Zhanlu 出口",
+    "请先导入 Zhanlu 授权文件": "請先匯入 Zhanlu 授權檔案",
+    "请选择授权文件和解密密钥文件": "請選擇授權檔案和解密金鑰檔案",
+    "授权文件过大或密钥文件不是 32 字节": "授權檔案過大或金鑰檔案不是 32 位元組",
+    "授权文件不是有效 JSON": "授權檔案不是有效 JSON",
+    "确认删除 Zhanlu 账号？": "確認刪除 Zhanlu 帳號？",
+    "导入完成：": "匯入完成：",
+
     "API 等价花费": "API 等價花費",
     "API 等价": "API 等價",
     " · 周期已过": " · 週期已過",
@@ -5367,6 +5401,11 @@ html[data-ui="next"] #nextContent .console-shell > main {padding:24px;max-width:
     </div>
 
     <!-- 卡片 3: CodeArts (华为云) -->
+    <div id="tabZhanlu" class="realm-card" onclick="switchViewRealm('zhanlu')">
+      <div style="font-weight:700">Zhanlu <span id="tabZhanluDefaultBadge" class="badge ok mini" style="display:none">默认出口</span></div>
+      <div style="font-size:12px;color:var(--dim);margin-top:8px">授权文件导入</div>
+      <div id="zhanluSummary" style="margin-top:8px">—</div>
+    </div>
     <div id="tabCodearts" class="realm-card" onclick="switchViewRealm('codearts')" style="display:none">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
         <span class="realm-badge-codearts">CodeArts (华为云)</span>
@@ -5487,6 +5526,7 @@ html[data-ui="next"] #nextContent .console-shell > main {padding:24px;max-width:
         <div class="next-realm-switch" id="nextGatewayRealmSwitch">
           <button type="button" data-realm="intl" onclick="switchViewRealm('intl')">国际版</button>
           <button type="button" data-realm="cn" onclick="switchViewRealm('cn')">国内版</button>
+          <button type="button" data-realm="zhanlu" id="nextGatewayRealmZhanlu" onclick="switchViewRealm('zhanlu')">Zhanlu</button>
           <button type="button" data-realm="codearts" id="nextGatewayRealmCodearts" onclick="switchViewRealm('codearts')">CodeArts</button>
         </div>
       </div>
@@ -5555,11 +5595,26 @@ html[data-ui="next"] #nextContent .console-shell > main {padding:24px;max-width:
     <div id="accountsRealmSwitch" class="realm-switch" role="group" aria-label="版本视图">
       <button type="button" id="accountsRealmIntl" onclick="switchViewRealm('intl')" aria-pressed="false">国际版</button>
       <button type="button" id="accountsRealmCn" onclick="switchViewRealm('cn')" aria-pressed="false">国内版</button>
+      <button type="button" id="accountsRealmZhanlu" onclick="switchViewRealm('zhanlu')" aria-pressed="false">Zhanlu</button>
       <button type="button" id="accountsRealmCodearts" onclick="switchViewRealm('codearts')" aria-pressed="false" style="display:none">CodeArts</button>
     </div>
   </div>
   <!-- 拆分模式下三个区块的落点（页头之后、原顺序）；合并模式搬走之后这里就空着 -->
   <span id="accountsHomeAnchor" hidden></span>
+  <section id="zhanluAccountsSection" style="display:none">
+    <h2>Zhanlu 账号</h2>
+    <div class="legend">导入 auth_zhanlu.json 和配套的 .zhanlu-auth.key；源密钥不落盘，账号凭据在本地加密保存。</div>
+    <div class="toolbar" style="flex-wrap:wrap">
+      <label>授权文件 <input id="zhanluAuthFile" type="file" accept=".json,application/json"></label>
+      <label>解密密钥文件 <input id="zhanluKeyFile" type="file"></label>
+      <label><input id="zhanluOverwrite" type="checkbox">覆盖已有账号</label>
+      <button class="sec" onclick="importZhanluAuth(this)">导入 Zhanlu 授权文件</button>
+      <button class="sec" onclick="zhanluAction('credits')">刷新积分</button>
+      <button class="sec" onclick="loadZhanluOverview()">刷新</button>
+      <label><input id="zhanluEnabled" type="checkbox" onchange="setZhanluEnabled(this)">启用 Zhanlu 出口</label>
+    </div>
+    <div id="zhanluAccounts"></div>
+  </section>
   <!-- CodeArts 视图：账号池由本进程直接管理。 -->
   <section id="codeartsAccountsSection" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
@@ -7923,6 +7978,14 @@ function updateUI(){
   const isCnView = (window.VIEW_REALM === "cn");
   const isCodeartsView = (window.VIEW_REALM === "codearts");
   const caEnabled = (window.REALM_OPTIONS || []).includes("codearts");
+  const isZhanluView = window.VIEW_REALM === "zhanlu";
+  const isExternalView = isCodeartsView || isZhanluView;
+  ["tabZhanlu", "accountsRealmZhanlu"].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) { el.classList.toggle("active", isZhanluView); el.setAttribute("aria-pressed", String(isZhanluView)); }
+  });
+  const zlSection = document.getElementById("zhanluAccountsSection");
+  if(zlSection) zlSection.style.display = isZhanluView ? "" : "none";
   const tIntl = document.getElementById("tabIntl");
   const tCn = document.getElementById("tabCn");
   const tCa = document.getElementById("tabCodearts");
@@ -7961,7 +8024,7 @@ function updateUI(){
   // 区块标题上的出口标签：这几个区块的内容都按当前视图区域取（账号、禁用汇总、
   // 最近请求、模型清单），标出来免得把国际版的数字看成全局的。用 <em> 承载：
   // 侧栏导航由 h2 生成时会剥掉 <em>，所以标签不会串进导航项。
-  const sectionRealm = isIntlView ? "（国际版）" : (isCnView ? "（国内版）" : "（CodeArts）");
+  const sectionRealm = isIntlView ? "（国际版）" : (isCnView ? "（国内版）" : (isZhanluView ? "（Zhanlu）" : "（CodeArts）"));
   ["disabledRealmTag", "recentRealmTag", "modelsRealmTag"].forEach(function(id){
     const el = document.getElementById(id);
     if(el) el.textContent = sectionRealm;
@@ -7979,27 +8042,29 @@ function updateUI(){
   if(dbIntl) dbIntl.style.display = isIntlGw ? "inline-block" : "none";
   const dbCn = document.getElementById("tabCnDefaultBadge");
   if(dbCn) dbCn.style.display = isCnGw ? "inline-block" : "none";
+  const dbZl = document.getElementById("tabZhanluDefaultBadge");
+  if(dbZl) dbZl.style.display = gwRealm === "zhanlu" ? "inline-block" : "none";
   const dbCa = document.getElementById("tabCodeartsDefaultBadge");
   if(dbCa) dbCa.style.display = isCaGw ? "inline-block" : "none";
 
   const gwName = document.getElementById("activeGatewayName");
   if(gwName) {
     gwName.textContent = isIntlGw ? "国际版 (Global)"
-      : (isCnGw ? "国内版 (China)" : "CodeArts (华为云)");
+      : (isCnGw ? "国内版 (China)" : (gwRealm === "zhanlu" ? "Zhanlu" : "CodeArts (华为云)"));
     gwName.style.color = isIntlGw ? "var(--accent)"
       : (isCnGw ? "var(--bad)" : "#5b3fa0");
   }
   const ep = document.getElementById("activeEndpoint");
   if(ep) ep.textContent = isIntlGw ? "https://www.workbuddy.ai/v2"
     : (isCnGw ? "https://copilot.tencent.com/v2"
-              : ((window.CODEARTS_OVERVIEW || {}).base_url || "华为云 CodeArts"));
+              : (gwRealm === "zhanlu" ? "Zhanlu" : ((window.CODEARTS_OVERVIEW || {}).base_url || "华为云 CodeArts")));
 
   const gwOptions = (window.REALM_OPTIONS && window.REALM_OPTIONS.length)
     ? window.REALM_OPTIONS : ["intl", "cn"];
   let gwIdx = gwOptions.indexOf(gwRealm);
   if(gwIdx < 0) gwIdx = 0;
   const nextGw = gwOptions[(gwIdx + 1) % gwOptions.length];
-  const nextGwName = (nextGw === "intl") ? "国际版" : (nextGw === "cn" ? "国内版" : "CodeArts");
+  const nextGwName = realmLabel(nextGw);
   const btnToggle = document.getElementById("btnToggleRealm");
   if(btnToggle) {
     btnToggle.textContent = "切换默认出口为【" + nextGwName + "】";
@@ -8111,16 +8176,16 @@ function updateUI(){
   ["workbuddyAccountsSection", "workbuddyDisabledSection",
    "workbuddyActivitySection"].forEach(function(id){
     const el = document.getElementById(id);
-    if(el) el.style.display = isCodeartsView ? "none" : "";
+    if(el) el.style.display = isExternalView ? "none" : "";
   });
   const caSection = document.getElementById("codeartsAccountsSection");
   if(caSection) caSection.style.display = isCodeartsView ? "" : "none";
   const caSummary = document.getElementById("codeartsSummary");
   if(caSummary) caSummary.style.display = isCodeartsView ? "" : "none";
   const wbCards = document.getElementById("cards");
-  if(wbCards) wbCards.style.display = isCodeartsView ? "none" : "";
+  if(wbCards) wbCards.style.display = isExternalView ? "none" : "";
   const wbSched = document.getElementById("schedulerBar");
-  if(wbSched) wbSched.style.display = isCodeartsView ? "none" : "";
+  if(wbSched) wbSched.style.display = isExternalView ? "none" : "";
 };
 
 // 切换视图的唯一入口：改完 VIEW_REALM 立刻用**已经加载好的**全量 window.ACCOUNTS
@@ -8138,6 +8203,10 @@ async function switchViewRealm(r){
   setViewRealm(r);
   RECENT_PAGE = 1;
   window.updateUI();
+  if(r === "zhanlu"){
+    await Promise.all([loadZhanluOverview(), loadModels(), loadAnalytics(), refresh()]);
+    return;
+  }
   if(r === "codearts"){
     // CodeArts 没有 WorkBuddy 的账号池/成长任务/调度器，别拿空数据去刷那些接口。
     await Promise.all([loadCodeartsOverview(true), loadModels(),
@@ -8151,7 +8220,7 @@ async function switchViewRealm(r){
 };
 
 function realmLabel(r){
-  return r === "intl" ? "国际版" : (r === "cn" ? "国内版" : "CodeArts");
+  return r === "intl" ? "国际版" : (r === "cn" ? "国内版" : (r === "zhanlu" ? "Zhanlu" : "CodeArts"));
 }
 
 async function toggleActiveGatewayRealm(){
@@ -8166,7 +8235,9 @@ async function toggleActiveGatewayRealm(){
     toast("网关默认上游已切换并永久保存为: " + realmLabel(window.ACTIVE_GATEWAY_REALM));
     setViewRealm(window.ACTIVE_GATEWAY_REALM);
     window.updateUI();
-    if(window.ACTIVE_GATEWAY_REALM === "codearts"){
+    if(window.ACTIVE_GATEWAY_REALM === "zhanlu"){
+      await Promise.all([loadZhanluOverview(), loadModels(), loadAnalytics(), refresh()]);
+    }else if(window.ACTIVE_GATEWAY_REALM === "codearts"){
       await Promise.all([loadCodeartsOverview(true), loadModels(),
                          loadAnalytics(), refresh()]);
     }else{
@@ -8177,6 +8248,72 @@ async function toggleActiveGatewayRealm(){
     alert("切换失败: " + e.message);
   }
 };
+
+/* ---- Zhanlu authorization-file egress ---- */
+window.ZHANLU_OVERVIEW = null;
+async function loadZhanluOverview(){
+  try{
+    const r = await getJSON('/zhanlu/overview');
+    window.ZHANLU_OVERVIEW = r;
+    const enabled = document.getElementById('zhanluEnabled');
+    if(enabled) enabled.checked = r.configured === true;
+    const summary = document.getElementById('zhanluSummary');
+    if(summary) summary.textContent = (r.stats.healthy || 0) + ' / ' + (r.stats.total || 0);
+    const box = document.getElementById('zhanluAccounts');
+    if(!box) return;
+    box.innerHTML = (r.accounts || []).map(a => {
+      const uid = esc(a.uid);
+      return '<div class="key-card"><b>' + esc(a.nickname) + '</b> <span class="mono">' + uid + '</span>'
+        + '<div>' + esc(a.base_url) + '</div>'
+        + '<div>' + (a.credits ? fmtCompact(a.credits.remain) : '—') + ' · ' + (a.enabled ? (a.cooling ? '冷却中' : '可用') : '已停用') + '</div>'
+        + '<div>' + esc(a.last_error || '') + '</div>'
+        + ['credits', a.enabled ? 'disable' : 'enable', 'clear-cooldown', 'delete'].map(action =>
+          '<button class="sec mini" data-zhanlu-action="' + action + '" data-uid="' + uid + '">'
+          + ({credits:'刷新积分',disable:'停用',enable:'启用','clear-cooldown':'清冷却',delete:'删除'}[action]) + '</button>').join('') + '</div>';
+    }).join('') || '<div class="empty">请先导入 Zhanlu 授权文件</div>';
+    box.querySelectorAll('[data-zhanlu-action]').forEach(btn => {
+      btn.onclick = () => zhanluAction(btn.dataset.zhanluAction, btn.dataset.uid);
+    });
+  }catch(e){ toast(e.message, 'bad'); }
+}
+async function setZhanluEnabled(el){
+  const value = el.checked;
+  try{
+    await postJSON('/settings/save', {zhanlu:{enabled:value}});
+    await refreshActiveRealm();
+    window.updateUI();
+  }catch(e){ el.checked = !value; toast(e.message, 'bad'); }
+}
+async function importZhanluAuth(btn){
+  const authInput = document.getElementById('zhanluAuthFile');
+  const keyInput = document.getElementById('zhanluKeyFile');
+  const auth = authInput.files[0], key = keyInput.files[0];
+  if(!auth || !key){ toast('请选择授权文件和解密密钥文件', 'bad'); return; }
+  if(auth.size > 1024*1024 || key.size !== 32){ toast('授权文件过大或密钥文件不是 32 字节', 'bad'); return; }
+  btn.disabled = true;
+  let keyBytes;
+  try{
+    let authDocument;
+    try{ authDocument = JSON.parse(await auth.text()); }
+    catch(e){ throw new Error('授权文件不是有效 JSON'); }
+    keyBytes = new Uint8Array(await key.arrayBuffer());
+    const r = await postJSON('/zhanlu/accounts/import', {
+      auth: authDocument, master_key: btoa(String.fromCharCode(...keyBytes)),
+      overwrite: document.getElementById('zhanluOverwrite').checked
+    });
+    toast('导入完成：' + r.added + ' / ' + r.updated + ' / ' + r.skipped, 'ok');
+    await loadZhanluOverview();
+  }catch(e){ toast(e.message, 'bad'); }
+  finally{
+    if(keyBytes) keyBytes.fill(0);
+    authInput.value = ''; keyInput.value = ''; btn.disabled = false;
+  }
+}
+async function zhanluAction(action, uid){
+  if(action === 'delete' && !confirm('确认删除 Zhanlu 账号？')) return;
+  try{ await postJSON('/zhanlu/accounts/' + action, {uid:uid || ''}); await loadZhanluOverview(); }
+  catch(e){ toast(e.message, 'bad'); }
+}
 
 /* ---- CodeArts 第三出口 ---- */
 window.CODEARTS_OVERVIEW = null;
@@ -8576,10 +8713,11 @@ async function initRealm(){
   await refreshActiveRealm();
   window.VIEW_REALM = window.ACTIVE_GATEWAY_REALM;
   const viewFromUrl = new URLSearchParams(window.location.search).get('view');
-  if(viewFromUrl && ['intl', 'cn', 'codearts'].includes(viewFromUrl)) window.VIEW_REALM = viewFromUrl;
+  if(viewFromUrl && ['intl', 'cn', 'codearts', 'zhanlu'].includes(viewFromUrl)) window.VIEW_REALM = viewFromUrl;
   const limitFromUrl = new URLSearchParams(window.location.search).get('limit');
   if(limitFromUrl && [10, 20, 50, 100].includes(parseInt(limitFromUrl, 10))) RECENT_LIMIT = parseInt(limitFromUrl, 10);
   window.updateUI();
+  if(window.VIEW_REALM === 'zhanlu') loadZhanluOverview();
   if(window.VIEW_REALM === 'codearts') loadCodeartsOverview(true);
 }
 
@@ -8587,6 +8725,13 @@ async function refreshModelCatalog(btn){
   // 手动刷新模型清单：强制走一次上游 /v3/config（服务端执行，绕过 300s 缓存），
   // 只刷当前视图版本——这张表显示的是哪个版本，刷新按钮就只拉哪个版本，绝
   // 不跨区（服务端会挑该版本自己的账号发请求）。完成后立即重载表格。
+  if(window.VIEW_REALM === 'zhanlu'){
+    if(btn) btn.disabled = true;
+    try{ await postJSON('/zhanlu/models/refresh', {}); await loadModels(); }
+    catch(e){ toast(e.message, 'bad'); }
+    finally{ if(btn) btn.disabled = false; }
+    return;
+  }
   if(window.VIEW_REALM === 'codearts'){
     if(btn) btn.disabled = true;
     const prevText = btn ? btn.textContent : '';
@@ -11479,6 +11624,7 @@ function autoFetchMissingCredits(){
 // 的回读一律不带参数，整表重画。/accounts 始终 no-store：响应里有带凭据的代理
 // 地址，不能落浏览器磁盘缓存。
 async function loadAccounts(poll){
+  if(window.VIEW_REALM === "zhanlu") return loadZhanluOverview();
   try{
     const [acct, byAcct] = await Promise.all([
       getJSON('/accounts?realm=all'),
@@ -12912,12 +13058,13 @@ let CONSOLE_INSIGHT_ROWS = [];
 function renderConsoleAccountHealth(accts){
   const box = document.getElementById('consoleAccountHealth');
   if(!box) return;
-  const isCodearts = window.VIEW_REALM === 'codearts';
+  const isZhanlu = window.VIEW_REALM === 'zhanlu';
+  const isCodearts = window.VIEW_REALM === 'codearts' || isZhanlu;
   const all = isCodearts ? [] : accountsInView();
   const groups = isCodearts ? (() => {
-    const st = (window.CODEARTS_OVERVIEW || {}).stats || {};
+    const st = ((isZhanlu ? window.ZHANLU_OVERVIEW : window.CODEARTS_OVERVIEW) || {}).stats || {};
     return [
-      {label: 'CodeArts', total: Number(st.total || 0), ok: Number(st.healthy || 0)}
+      {label: isZhanlu ? 'Zhanlu' : 'CodeArts', total: Number(st.total || 0), ok: Number(st.healthy || 0)}
     ];
   })() : [
     {label: '国际版', total: (accts || []).filter(a => a.realm === 'intl').length, ok: (accts || []).filter(a => a.realm === 'intl' && accountIsHealthy(a)).length},
@@ -16936,7 +17083,7 @@ function renderDeletedKeyRows(){
   const rows = DELETED_KEY_ROWS.map(k => {
     const realmLbl = (k.realm === 'intl') ? '固定国际版出口'
       : ((k.realm === 'cn') ? '固定国内版出口'
-        : ((k.realm === 'codearts') ? '固定 CodeArts 出口' : '跟随面板切换'));
+        : ((k.realm === 'zhanlu') ? '固定 Zhanlu 出口' : ((k.realm === 'codearts') ? '固定 CodeArts 出口' : '跟随面板切换')));
     return '<div style="font-size:12px;color:var(--dim);display:flex;gap:14px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--line)">'
       + '<span style="color:var(--fg);font-weight:600">' + esc(k.name || '未命名') + '</span>'
       + '<span>' + esc(realmLbl) + '</span>'
@@ -16967,7 +17114,8 @@ function renderKeyRows(){
     if(row._editing){
       const realmChoices = REALM_CHOICES.concat(
         (window.REALM_OPTIONS || []).includes('codearts')
-          ? [['codearts', '固定 CodeArts 出口']] : []);
+          ? [['codearts', '固定 CodeArts 出口']] : []).concat(
+        (window.REALM_OPTIONS || []).includes('zhanlu') ? [['zhanlu', '固定 Zhanlu 出口']] : []);
       const options = realmChoices.map(([val, lbl]) =>
         '<option value="' + val + '"' + ((row.realm || '') === val ? ' selected' : '') + '>' + lbl + '</option>'
       ).join('');
@@ -17049,6 +17197,8 @@ function renderKeyRows(){
       ? '<span class="realm-badge-intl" style="font-size:11px">固定国际版出口</span>'
       : (row.realm === 'cn')
       ? '<span class="realm-badge-cn" style="font-size:11px">固定国内版出口</span>'
+      : (row.realm === 'zhanlu')
+      ? '<span class="badge s" style="font-size:11px">固定 Zhanlu 出口</span>'
       : '<span class="badge s" style="font-size:11px">跟随面板切换</span>';
 
     const concBadge = (row.concurrency_limit && row.concurrency_limit > 0)
@@ -17166,7 +17316,7 @@ async function loadKeyModelCatalog(){
   // The unscoped listing is the widest catalogue the gateway advertises; the
   // per-realm calls fill in anything it omits.
   try { const r = await getJSON('/v1/models'); add(r.data); } catch(e) { /* keep going */ }
-  for(const realm of ['intl', 'cn']){
+  for(const realm of (window.REALM_OPTIONS || ['intl', 'cn'])){
     try {
       const r = await getJSON('/v1/models?realm=' + realm);
       add(r.data);
@@ -17206,7 +17356,11 @@ async function renderKeyPickers(i){
     if(!(window.ACCOUNTS || []).length){
       try { await loadAccounts(); } catch(e) { /* keep the empty hint */ }
     }
-    const accts = window.ACCOUNTS || [];
+    let accts = window.ACCOUNTS || [];
+    if(row.realm === 'zhanlu'){
+      try{ const r = await getJSON('/zhanlu/accounts'); accts = r.accounts || []; }
+      catch(e){ accts = []; }
+    }
     const groupSelect = document.getElementById('editKeyAccountGroup_' + i);
     if(groupSelect){
       const groups = Array.from(new Set(accts.map(a => String((a && a.group) || '').trim()).filter(Boolean))).sort();
@@ -19631,6 +19785,7 @@ async function onKeyBeforeToggle(box){
 }
 function keyRealmCell(k){
   if(k.source === 'bucket') return '<span style="color:var(--dim)">—</span>';
+  if(k.realm === 'zhanlu') return '<span class="badge s" style="font-size:10px">Zhanlu</span>';
   if(k.realm === 'cn') return '<span class="badge warn" style="font-size:10px">国内版</span>';
   if(k.realm === 'intl') return '<span class="badge s" style="font-size:10px">国际版</span>';
   // realm 为空的 Key 不绑出口，而是跟着模型走：它可能两个出口都用过，
@@ -21424,6 +21579,7 @@ if (typeof SORT_DENY_TABLES !== 'undefined' && SORT_DENY_TABLES && SORT_DENY_TAB
 
   function nextRealmLabel(){
     var realm = window.VIEW_REALM || 'intl';
+    if(realm === 'zhanlu') return 'Zhanlu';
     if(realm === 'codearts') return 'CodeArts';
     if(realm === 'cn') return '国内版';
     return '国际版';
@@ -21432,7 +21588,7 @@ if (typeof SORT_DENY_TABLES !== 'undefined' && SORT_DENY_TABLES && SORT_DENY_TAB
   var NEXT_META = {
     overview: { title: '总览', desc: '出口、账号健康和最近请求一屏看完。' },
     gateway: { title: '网关', desc: '模型目录、能力、思考档位与在售倍率。' },
-    accounts: { title: '账号', desc: 'WorkBuddy 与 CodeArts 账号、积分和签到记录。' },
+    accounts: { title: '账号', desc: 'WorkBuddy、CodeArts 与 Zhanlu 账号、积分和签到记录。' },
     analytics: { title: '用量', desc: 'Token、请求、缓存、成本和剩余额度。' },
     tasks: { title: '自动化', desc: '每日活跃、成长任务和后台调度器。' },
     agents: { title: '智能体', desc: '把本机 AI 客户端一键指向当前网关。' },

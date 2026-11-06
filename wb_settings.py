@@ -436,7 +436,7 @@ def ensure_launcher_key(accounts_dir):
 # Each key can be bound to one upstream realm, so several clients can hit
 # different exits at the same time instead of sharing the global switch.
 
-REALMS = ("", "intl", "cn", "codearts")
+REALMS = ("", "intl", "cn", "codearts", "zhanlu")
 
 
 def codearts_config(accounts_dir):

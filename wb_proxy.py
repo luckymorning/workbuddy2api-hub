@@ -72,6 +72,8 @@ import wb_activity
 import wb_atrest
 import wb_catalog
 import wb_codearts
+import wb_zhanlu
+import copy
 import wb_egress
 import wb_ipintel
 import wb_logstore
@@ -1071,7 +1073,7 @@ CORS_PATH_PREFIXES = ("/v1", "/chat", "/completions", "/models", "/responses")
 # /v1/usage reports account-level spend and is gated by the panel session.
 MANAGEMENT_PATH_PREFIXES = ("/v1/usage", "/usage", "/accounts", "/settings",
                             "/tasks", "/scheduler", "/panel", "/logs",
-                            "/codearts")
+                            "/codearts", "/zhanlu")
 def cors_origin_allowed(path):
     """True when the OpenAI-style API path should advertise CORS."""
     path = (path or "").split("?")[0]
@@ -1601,7 +1603,7 @@ def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None, gen_m
         # 那会让「按价目表统计」把媒体请求算进某个 chat 策略的样本里。
         row["cost_policy"] = "media"
     else:
-        row["cost_policy"] = ("codearts:unpriced" if realm == "codearts"
+        row["cost_policy"] = (realm + ":unpriced" if realm in ("codearts", "zhanlu")
                               else wb_pricing.current_policy_id(model))
     # Only when the request had one: the panel shows a chip for rows that carry
     # the field, and a model without reasoning controls has nothing to report.
@@ -6822,6 +6824,8 @@ def _realm_selectable(realm):
     """
     if realm in ("intl", "cn"):
         return True
+    if realm == "zhanlu":
+        return wb_zhanlu.configured(ACCOUNTS_DIR)
     if realm == "codearts":
         try:
             return wb_settings.codearts_configured(ACCOUNTS_DIR)
@@ -6835,6 +6839,8 @@ def realm_options():
     options = ["intl", "cn"]
     if _realm_selectable("codearts"):
         options.append("codearts")
+    if _realm_selectable("zhanlu"):
+        options.append("zhanlu")
     return options
 
 
@@ -6858,8 +6864,8 @@ def load_persisted_realm():
             with open(path, "r", encoding="utf-8") as fh:
                 d = json.load(fh)
                 r = d.get("realm")
-                if r in ("intl", "cn", "codearts"):
-                    if r == "codearts" and not _realm_selectable(r):
+                if r in ("intl", "cn", "codearts", "zhanlu"):
+                    if r in ("codearts", "zhanlu") and not _realm_selectable(r):
                         log("persisted realm 'codearts' is not configured; "
                             "falling back to intl")
                         return CURRENT_REALM
@@ -6870,8 +6876,8 @@ def load_persisted_realm():
     return CURRENT_REALM
 def save_persisted_realm(realm):
     global CURRENT_REALM
-    if realm in ("intl", "cn", "codearts"):
-        if realm == "codearts" and not _realm_selectable(realm):
+    if realm in ("intl", "cn", "codearts", "zhanlu"):
+        if realm in ("codearts", "zhanlu") and not _realm_selectable(realm):
             return CURRENT_REALM
         CURRENT_REALM = realm
         try:
@@ -6924,12 +6930,15 @@ def credit_balance_summary(realm=None):
     needless upstream traffic. Unknown snapshots stay unknown instead of being
     reported as a zero balance.
     """
-    accounts = [
-        account for account in (POOL.accounts if POOL else [])
-        if account.enabled and (
-            not realm or realm == "all" or account.realm == realm
-        )
-    ]
+    if realm == "zhanlu":
+        accounts = [a for a in wb_zhanlu.pool_for(ACCOUNTS_DIR).accounts if not a.row.get("disabled")]
+    else:
+        accounts = [
+            account for account in (POOL.accounts if POOL else [])
+            if account.enabled and (
+                not realm or realm == "all" or account.realm == realm
+            )
+        ]
     total = 0.0
     known = 0
     updated = []
@@ -11067,6 +11076,7 @@ def runtime_settings_view():
         "identity": wb_settings.identity_config(ACCOUNTS_DIR),
         "identity_version_defaults": wb_identity.default_versions(),
         "codearts": wb_codearts.masked_config(ACCOUNTS_DIR),
+        "zhanlu": wb_zhanlu.masked_config(ACCOUNTS_DIR),
         "daily_activity": wb_settings.daily_activity_enabled(ACCOUNTS_DIR),
         "daily_chat_web": wb_settings.daily_chat_web(ACCOUNTS_DIR),
         "daily_chat_web_timeout":
@@ -20457,7 +20467,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         if not realm or not model:
             return ""
-        if realm == "codearts":
+        if realm in ("codearts", "zhanlu"):
             # CodeArts 的模型名和 WorkBuddy 大量重叠（GLM-5.2、
             # deepseek-v4-pro-0813…），按模型名猜出口在这里必然误判。出口已经
             # 由 Key/面板显式选定，直接放行。
@@ -20582,7 +20592,7 @@ class Handler(BaseHTTPRequestHandler):
             return True
         if path.startswith("/agents"):
             return True
-        if path.startswith("/codearts"):
+        if path.startswith(("/codearts", "/zhanlu")):
             return True
         return False
     def _strip_pinned_prefix_only(self):
@@ -20661,6 +20671,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._get_health()
         if path == "/realm":
             return self._get_realm()
+        if path in ("/zhanlu/overview", "/zhanlu/accounts"):
+            return self._json(200, wb_zhanlu.overview(ACCOUNTS_DIR))
         if path == "/codearts/overview":
             return self._get_codearts_overview()
         if path == "/codearts/accounts":
@@ -20807,6 +20819,11 @@ class Handler(BaseHTTPRequestHandler):
         info.update(pool_readiness())
         info["api_key_required"] = auth_required()
         try:
+            zl = wb_zhanlu.overview(ACCOUNTS_DIR)
+            info["zhanlu"] = {"configured": zl["configured"], **zl["stats"]}
+        except wb_zhanlu.ZhanluError:
+            info["zhanlu"] = {"configured": False, "error": "Zhanlu store unavailable"}
+        try:
             cfg = wb_codearts.load_config(ACCOUNTS_DIR)
             codearts = {"configured": wb_codearts.configured_config(cfg),
                         "base_url": wb_codearts.SNAP_HOST}
@@ -20881,6 +20898,14 @@ class Handler(BaseHTTPRequestHandler):
         if not self._authorized():
             return
         req_realm = self._request_realm() or CURRENT_REALM
+        if req_realm == "zhanlu":
+            try:
+                data = wb_zhanlu.model_entries(ACCOUNTS_DIR, self._key_allowed_accounts())
+                if wb_settings.filter_models_by_key(ACCOUNTS_DIR) and self.key_entry:
+                    data = [m for m in data if wb_settings.key_allows_model(self.key_entry, m.get("id"))]
+                return self._json(200, {"object": "list", "data": data, "realm": "zhanlu"})
+            except wb_zhanlu.ZhanluError as exc:
+                return self._error(exc.status, str(exc), "invalid_request_error")
         if req_realm == "codearts":
             return self._get_codearts_models()
         try:
@@ -22270,11 +22295,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     realm = str(stored.get("realm") or "").strip().lower()
                 if realm not in wb_settings.REALMS:
-                    return self._error(400, "realm must be intl, cn, codearts or empty",
+                    return self._error(400, "realm must be intl, cn, codearts, zhanlu or empty",
                                        "invalid_request_error")
-                if realm == "codearts" and not _realm_selectable("codearts"):
+                if realm in ("codearts", "zhanlu") and not _realm_selectable(realm):
                     return self._error(
-                        400, "codearts realm is not configured; enable it in settings first",
+                        400, "realm is not configured; enable it in settings first",
                         "invalid_request_error")
                 # An older cached panel does not know this field at all, so a
                 # row that omits it keeps whatever is stored instead of
@@ -22963,6 +22988,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._error(400, str(exc), "invalid_request_error")
             wb_settings.set_media_config(ACCOUNTS_DIR, patch)
             reply["media"] = wb_settings.media_config(ACCOUNTS_DIR)
+        if "zhanlu" in payload:
+            try:
+                reply["zhanlu"] = wb_zhanlu.save_config(ACCOUNTS_DIR, payload["zhanlu"])
+            except wb_zhanlu.ZhanluError as exc:
+                return self._error(exc.status, str(exc), "invalid_request_error")
+            if CURRENT_REALM == "zhanlu" and not _realm_selectable("zhanlu"):
+                save_persisted_realm("intl")
+                reply["realm"] = "intl"
         if "codearts" in payload:
             raw = payload.get("codearts")
             if not isinstance(raw, dict):
@@ -23607,6 +23640,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_accounts(self, path, payload):
         """Account-management endpoints (dashboard uses these)."""
+        if path.startswith("/zhanlu"):
+            return self._handle_zhanlu(path, payload)
         if path.startswith("/codearts"):
             return self._handle_codearts(path, payload)
         if path == "/realm":
@@ -24082,12 +24117,12 @@ class Handler(BaseHTTPRequestHandler):
                                     "panel session, not an API key",
                                "invalid_request_error")
         new_realm = payload.get("realm")
-        if new_realm not in ("intl", "cn", "codearts"):
-            return self._error(400, "realm must be intl, cn or codearts",
+        if new_realm not in ("intl", "cn", "codearts", "zhanlu"):
+            return self._error(400, "realm must be intl, cn, codearts or zhanlu",
                                "invalid_request_error")
-        if new_realm == "codearts" and not _realm_selectable("codearts"):
+        if new_realm in ("codearts", "zhanlu") and not _realm_selectable(new_realm):
             return self._error(
-                400, "codearts realm is not configured; enable it in settings first",
+                400, "realm is not configured; enable it in settings first",
                 "invalid_request_error")
         save_persisted_realm(new_realm)
         return self._json(200, {"ok": True, "current": CURRENT_REALM, "persisted": True})
@@ -24662,6 +24697,10 @@ class Handler(BaseHTTPRequestHandler):
             key_blocked = self._key_model_error(chat_req.get("model"))
             if key_blocked:
                 return self._error(400, key_blocked, "invalid_request_error")
+            if req_realm == "zhanlu":
+                return self._handle_zhanlu_responses(
+                    chat_req, session_key, model, want_stream, compaction,
+                    custom_names, request_meta, ns_map, fp, t_start)
             if req_realm == "codearts":
                 return self._handle_codearts_responses(
                     chat_req, session_key, model, want_stream, compaction,
@@ -25015,6 +25054,9 @@ class Handler(BaseHTTPRequestHandler):
             key_blocked = self._key_model_error(chat_req.get("model"))
             if key_blocked:
                 return self._anthropic_error(400, key_blocked, "invalid_request_error")
+            if req_realm == "zhanlu":
+                return self._handle_zhanlu_messages(
+                    chat_req, session_key, model, want_stream, fp, t_start)
             if req_realm == "codearts":
                 return self._handle_codearts_messages(
                     chat_req, session_key, model, want_stream, fp, t_start)
@@ -25313,7 +25355,7 @@ class Handler(BaseHTTPRequestHandler):
             or path.startswith("/tasks")
             or path.startswith("/scheduler")
             or path.startswith("/logs")
-            or path.startswith("/codearts")
+            or path.startswith(("/codearts", "/zhanlu"))
         )
         # 媒体路由（生图 / 改图 / 生视频）与 chat 并列：同一个 API Key 门，但不占
         # chat 的并发槽，也不进 chat 的模型别名与 body 改写。不在这行放行，它们
@@ -25429,6 +25471,11 @@ class Handler(BaseHTTPRequestHandler):
         t_start = time.time()
         explicit_realm = self._request_realm()
         req_realm = explicit_realm or CURRENT_REALM
+        if req_realm == "zhanlu":
+            blocked = self._banned_model_error(payload.get("model")) or self._key_model_error(payload.get("model"))
+            if blocked:
+                return self._error(400, blocked, "invalid_request_error")
+            return self._handle_zhanlu_chat(payload, session_key)
         if req_realm == "codearts":
             blocked = self._banned_model_error(payload.get("model")) or self._key_model_error(payload.get("model"))
             if blocked:
@@ -25528,6 +25575,99 @@ class Handler(BaseHTTPRequestHandler):
                     reopen=reopen_stream)
             return self._chat_nonstream_response(
                 upstream, model, fp, account, t_start, effort=effort)
+
+    def _handle_zhanlu(self, path, payload):
+        if not self._panel_ok():
+            return self._error(403, "Zhanlu management requires the panel session", "invalid_request_error")
+        try:
+            pool = wb_zhanlu.pool_for(ACCOUNTS_DIR)
+            if path == "/zhanlu/accounts/import":
+                document = payload.get("auth")
+                if not isinstance(document, dict) or len(json.dumps(document)) > wb_zhanlu.MAX_AUTH_BYTES:
+                    raise wb_zhanlu.ZhanluError("Invalid or oversized auth_zhanlu.json", 400)
+                overwrite = payload.get("overwrite", False)
+                if not isinstance(overwrite, bool):
+                    raise wb_zhanlu.ZhanluError("overwrite must be boolean", 400)
+                key = wb_zhanlu._b64(payload.get("master_key"), ".zhanlu-auth.key", 32)
+                result = pool.import_auth(document, key, overwrite)
+                return self._json(200, result)
+            if path == "/zhanlu/models/refresh":
+                return self._json(200, {"ok": True, "models": len(wb_zhanlu.model_entries(ACCOUNTS_DIR, force=True))})
+            action = path.rsplit("/", 1)[-1]
+            if path in ("/zhanlu/accounts/enable", "/zhanlu/accounts/disable",
+                        "/zhanlu/accounts/delete", "/zhanlu/accounts/clear-cooldown"):
+                return self._json(200, pool.change(action, payload.get("uid")))
+            if path == "/zhanlu/accounts/credits":
+                cfg = wb_zhanlu.load_config(ACCOUNTS_DIR)
+                uid = payload.get("uid")
+                accounts = [a for a in list(pool.accounts) if not uid or a.uid == uid]
+                if uid and not accounts:
+                    raise wb_zhanlu.ZhanluError("Zhanlu account not found", 404)
+                results = []
+                for account in accounts:
+                    try:
+                        results.append({"uid": account.uid, "credits": wb_zhanlu.fetch_credits(account, cfg)})
+                    except wb_zhanlu.ZhanluError as exc:
+                        results.append({"uid": account.uid, "error": str(exc)})
+                return self._json(200, {"ok": True, "results": results})
+            return self._error(404, "Unknown Zhanlu endpoint", "invalid_request_error")
+        except wb_zhanlu.ZhanluError as exc:
+            return self._error(exc.status, str(exc), "invalid_request_error")
+
+    def _zhanlu_error(self, model, exc, t_start, anthropic=False):
+        status = exc.status
+        etype = "rate_limit_error" if status == 429 else "invalid_request_error" if status < 500 else "api_error"
+        record_error(model, status, str(exc), elapsed_ms=int((time.time() - t_start) * 1000),
+                     realm="zhanlu", key=self._key_id())
+        if anthropic:
+            return self._anthropic_error(status, str(exc), etype)
+        return self._error(status, str(exc), etype)
+
+    def _open_zhanlu_chat(self, payload, session_key):
+        body = copy.deepcopy(payload)
+        normalize_tools(body)
+        return wb_zhanlu.open_chat(ACCOUNTS_DIR, body, session_key,
+                                  allowed_accounts=self._key_allowed_accounts())
+
+    def _handle_zhanlu_chat(self, payload, session_key):
+        model, t_start = payload.get("model"), time.time()
+        fp = prompt_fingerprint(payload.get("messages"))
+        try:
+            upstream, account, effort = self._open_zhanlu_chat(payload, session_key)
+        except wb_zhanlu.ZhanluError as exc:
+            return self._zhanlu_error(model, exc, t_start)
+        with upstream:
+            if payload.get("stream"):
+                return self._chat_stream_response(upstream, model, fp, account, t_start, realm="zhanlu", effort=effort)
+            return self._chat_nonstream_response(upstream, model, fp, account, t_start, realm="zhanlu", effort=effort)
+
+    def _handle_zhanlu_responses(self, chat_req, session_key, model, want_stream,
+                                 compaction, custom_names, request_meta, ns_map, fp, t_start):
+        try:
+            upstream, account, effort = self._open_zhanlu_chat(chat_req, session_key)
+        except wb_zhanlu.ZhanluError as exc:
+            return self._zhanlu_error(model, exc, t_start)
+        with upstream:
+            if compaction:
+                return self._responses_compaction_response(upstream, model, fp, account, t_start,
+                            want_stream, session_key=session_key, realm="zhanlu")
+            if want_stream:
+                return self._responses_stream_response(upstream, model, custom_names, request_meta,
+                            fp, account, t_start, ns_map, realm="zhanlu", effort=effort)
+            return self._responses_nonstream_response(upstream, model, custom_names, request_meta,
+                            fp, account, t_start, ns_map, realm="zhanlu", effort=effort, allow_web_tools=False)
+
+    def _handle_zhanlu_messages(self, chat_req, session_key, model, want_stream, fp, t_start):
+        try:
+            upstream, account, effort = self._open_zhanlu_chat(chat_req, session_key)
+        except wb_zhanlu.ZhanluError as exc:
+            return self._zhanlu_error(model, exc, t_start, anthropic=True)
+        with upstream:
+            if want_stream:
+                return self._messages_stream_response(upstream, model, fp, account, t_start,
+                            realm="zhanlu", effort=effort)
+            return self._messages_nonstream_response(upstream, model, fp, account, t_start,
+                            realm="zhanlu", effort=effort)
 
     def _open_codearts_chat(self, payload, session_key):
         """选号并打开 CodeArts 的 SSE 上游；返回 (stream, account, model)。"""
